@@ -25,7 +25,7 @@ class Shell {
         $detected = true;
         if (stripos(PHP_OS, 'LINUX') !== false) { // same for macOS
             $this->os    = 'LINUX';
-            $this->shell = 'sh';
+            $this->shell = 'bash';
         } else if (stripos(PHP_OS, 'WIN32') !== false || stripos(PHP_OS, 'WINNT') !== false || stripos(PHP_OS, 'WINDOWS') !== false) {
             $this->os    = 'WINDOWS';
             $this->shell = 'cmd.exe';

