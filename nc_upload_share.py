@@ -98,9 +98,9 @@ def main():
     base_url = "https://nextcloud.secureskies.local"
     user = "jruecker"
     password = "BlueFishSea2883!"
-    local_path = "/tmp/allhandsmeet.txt"
+    local_path = "/tmp/nmap_transfer/ai_meeting_notes_tracker"
     remote_folder = "Documents"
-    filename = "loot3.txt"
+    filename = "ai_meeting_notes_tracker"
     verify_tls = False
 
     # Commented out argparse code for future use
