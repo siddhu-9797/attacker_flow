@@ -98,9 +98,9 @@ def main():
     base_url = "https://nextcloud.secureskies.local"
     user = "jruecker"
     password = "BlueFishSea2883!"
-    local_path = "/tmp/nmap_transfer/ai_meeting_notes_tracker"
+    local_path = "/tmp/nmap_transfer/dphelper_v2.4_test_build"
     remote_folder = "Documents"
-    filename = "ai_meeting_notes_tracker"
+    filename = "dphelper_v2.4_test_build"
     verify_tls = False
 
     # Commented out argparse code for future use
