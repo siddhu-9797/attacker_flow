@@ -53,31 +53,74 @@ exit
 ### **3. On Ubuntu Web Server (secureskies) - Kill Active Connections**
 
 ```bash
-
-# On the secureskies web server
+# Add local firewall rules
 sudo iptables -I INPUT 1 -s 12.0.0.45 -j DROP
 sudo iptables -I OUTPUT 1 -d 12.0.0.45 -j DROP
 
-# Kill active connections and processes
+# Verify firewall rules are in place
+sudo iptables -L INPUT -n -v | grep 12.0.0.45
+sudo iptables -L OUTPUT -n -v | grep 12.0.0.45
+
 # Kill connections to attacker IP
 sudo lsof -ti TCP@12.0.0.45 | xargs -r sudo kill -9
+
+# Verify no connections to attacker IP remain
+sudo lsof -i TCP@12.0.0.45
+# Expected: No output (empty)
 
 # Kill connections on port 4444
 sudo lsof -ti :4444 | xargs -r sudo kill -9
 
+# Verify no connections on port 4444
+sudo lsof -i :4444
+# Expected: No output (empty)
+
+#check send_db.py running processes
+sudo ps aux | grep 'send_db.py'
+
+# Kill send_db.py process
 sudo pkill -9 -f send_db.py
 
+# Verify send_db.py is not running
+ps aux | grep send_db.py
+# Expected: No output (empty)
+
+# Kill nc_upload_share.py process
 sudo pkill -9 -f nc_upload_share.py
+
+# Verify nc_upload_share.py is not running
+ps aux | grep nc_upload_share.py | grep -v grep
+# Expected: No output (empty)
+
+# Kill mail_test.py process
 sudo pkill -9 -f mail_test.py
+
+# Verify mail_test.py is not running
+ps aux | grep mail_test.py | grep -v grep
+# Expected: No output (empty)
+
+# Kill dphelper_v2.4_test_build process
 sudo pkill -9 -f dphelper_v2.4_test_build
+
+# Verify dphelper is not running
+ps aux | grep dphelper_v2.4_test_build | grep -v grep
+# Expected: No output (empty)
+
+# Kill nmap process
 sudo pkill -9 -f nmap
 
-----
+# Verify nmap is not running
+ps aux | grep nmap | grep -v grep
+# Expected: No output (empty)
 
 # Kill any www-data spawned shells
 sudo pkill -9 -u www-data -f '/bin/sh'
 sudo pkill -9 -u www-data -f '/bin/bash'
 sudo pkill -9 -u www-data -f 'nc'
+
+# Verify no shells running as www-data
+ps aux | grep www-data | grep -E '/bin/sh|/bin/bash|nc' | grep -v grep
+# Expected: No output (empty)
 ```
 
 ### **4. Remove Malicious Files**

