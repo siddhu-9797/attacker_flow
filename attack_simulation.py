@@ -586,7 +586,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 1] DIRECTORY FUZZING WITH GOBUSTER")
     print("="*60)
-    # run_gobuster(TARGET_BASE)
+    run_gobuster(TARGET_BASE)
     
     print("\n[*] Waiting 3 seconds before pentest traffic simulation...")
     time.sleep(3)
@@ -595,7 +595,7 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("[PHASE 2] PENTEST TRAFFIC SIMULATION")
     print("="*60)
-    # simulate_pentest_traffic()
+    simulate_pentest_traffic()
     
     # time.sleep(5)
     

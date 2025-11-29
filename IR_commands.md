@@ -62,17 +62,17 @@ sudo iptables -L INPUT -n -v | grep 12.0.0.45
 sudo iptables -L OUTPUT -n -v | grep 12.0.0.45
 
 # Kill connections to attacker IP
-sudo lsof -ti TCP@12.0.0.45 | xargs -r sudo kill -9
+sudo netstat -antp | grep 12.0.0.45 | awk '{print $7}' | cut -d'/' -f1 | xargs -r sudo kill -9
 
 # Verify no connections to attacker IP remain
-sudo lsof -i TCP@12.0.0.45
+sudo netstat -antp | grep 12.0.0.45
 # Expected: No output (empty)
 
 # Kill connections on port 4444
-sudo lsof -ti :4444 | xargs -r sudo kill -9
+sudo netstat -antp | grep :4444 | awk '{print $7}' | cut -d'/' -f1 | xargs -r sudo kill -9
 
 # Verify no connections on port 4444
-sudo lsof -i :4444
+sudo netstat -antp | grep :4444
 # Expected: No output (empty)
 
 #check send_db.py running processes
