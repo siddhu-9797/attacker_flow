@@ -15,6 +15,7 @@ import re
 
 ATTACKER_IP = "12.0.0.45"
 TOTAL_POINTS = 30
+TOTAL_POINTS = 30
 score = 0
 
 def run_command(cmd, shell=False):
